@@ -73,27 +73,36 @@ object Main {
             (pman, llisting.manufacturer)
           }
 
-          lg.contains(sm) || llisting.title.contains(pman)
+          lg.contains(sm) || llisting.title.contains(pman) // fast filters to eliminate some cartesian pairs
       }
-      .map {
+      .map { // remove the extra lowercase listing, we do it now to save memory
         case (pman, (_, listing)) => (pman, listing)
       }
-      .join(prodManMapping) // ((manufacturer, Listing), Product)
-      .flatMap {
+      .join(prodManMapping) // Join the original product set again, now we have (manufacturer -> (Listing, Product))
+                            // with a low, but non-zero chance they are correct, while not being horribly memory
+                            // punishing
+      .flatMap {            // simultaneously remove the extra manufacture tag and check the products against the
+                            // Listing values that are *likely* correct, this check takes more time and uses tools such
+                            // as Levishtein distance of values and filtering of characters
+
         case (_, (listing, prods)) =>
           prods.map(product => (listing, (product, product.similarity(listing))))
-            .filter {
-              case (_, (_, sim)) => sim > SIM_CUT_OFF
-            }
+
+      }
+      .filter { // Given that these "connected" bits can be large, it is useful to filter early
+        case (_, (_, sim)) => sim > SIM_CUT_OFF
       }
       .reduceByKey((accum, that) => {
+        // Since it is given that a Product-Listing relationship is 1-M, then a listing can only have one Product
+        // We use the most likely candidate rather than intentionally passing a false-positive (as per the spec)
         if (accum._2 > that._2) {
           accum
         } else {
           that
         }
       })
-      .map { case (listing, (p, sim)) => (p, (listing, sim)) }
+
+      .map { case (listing, (p, sim)) => (p, (listing, sim)) } // rearrange and group on the product
       .groupByKey
       .persist
 
