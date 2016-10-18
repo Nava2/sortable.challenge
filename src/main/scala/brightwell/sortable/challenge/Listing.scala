@@ -25,38 +25,44 @@ case class Listing(title: String,
 
 object Listing {
 
-  case class Aggregate(fuzzy: FuzzyEq, others: Iterable[Listing]) {
+  case class Aggregate(others: Iterable[Listing]) {
 
-    val titles = Set(others.map(_.title.toLowerCase))
-    val manufacturers = Set(others.map(_.manufacturer.toLowerCase))
-    val prices = Set(others.map(_.price))
+    val allTitles: Set[String] = others.map(_.title.toLowerCase).toSet
+    val title = reduceToCommon(allTitles)
 
-  }
+    val allManufacturers = others.map(_.manufacturer.toLowerCase).toSet
+    val manufacturer = reduceToCommon(allManufacturers)
 
-  private val TITLE_THRESHOLD = 0.10
+    val prices = others.map(_.price).toSet
 
-  case class FuzzyEq(l: Listing) {
-    private val ll = l.toLowerCase
-    private val dist = Distance(ll.title, TITLE_THRESHOLD)
+    def filterTo(product: Product) = {
+      val sims = others.map {
+        l => (l, product.similarity(l))
+      }
 
-    override def equals(o: scala.Any): Boolean = o match {
-      case that: FuzzyEq =>
-        val lthat = that.ll
+      val newRes = sims.filter { _._2 > 4.0 } map { _._1 }
 
-//        val (sm, lg) = if (ll.manufacturer.length < lthat.manufacturer.length) {
-//          (ll.manufacturer, lthat.manufacturer)
-//        } else {
-//          (lthat.manufacturer, ll.manufacturer)
-//        }
-//
-//        if (!lg.contains(sm)) {
-//          false
-//        } else {
-          dist.check(lthat.title) <= TITLE_THRESHOLD
-//        }
-
-      case _ => false
+      if (newRes.nonEmpty) {
+        Some(Aggregate(newRes))
+      } else {
+        None
+      }
     }
+
+    private def reduceToCommon(set: Set[String]) = {
+      if (set.isEmpty) {
+        None
+      } else if (set.size == 1) {
+        Some(set.head)
+      } else {
+        val r = set.takeRight(set.size - 1).fold(set.head) { (lcs, title) =>
+          Distance.calcLongestCommon(lcs, title).toString
+        }
+
+        Some(r)
+      }
+    }
+
   }
 
   // Json conversions:

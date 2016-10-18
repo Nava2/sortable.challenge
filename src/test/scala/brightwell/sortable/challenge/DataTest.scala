@@ -38,8 +38,22 @@ class DataTest extends FlatSpec with Matchers {
         manufacturer = "Panasonic",
         price = Money.of(CurrencyUnit.CAD, 244.55))
 
-    product.similarity(trueMatch) should be(1.0)
-    product.similarity(goodManOnly) should be(0.5)
+    product.similarity(trueMatch) should be(5.0)
+    product.similarity(goodManOnly) should be(1.0)
     product.similarity(allBad) should be(-2.0)
+  }
+
+  "Product(Samsung-SL605,Samsung,SL605,None,2010-02-25T19:00:00.000-05:00)" should "have similarity" in {
+
+    val p = Product("Samsung-SL605","Samsung","SL605",None,DateTime.parse("2010-02-25T19:00:00.000-05:00"))
+
+    val l = Listing("Samsung SL605 " +
+        "12.2 MP Digital Camera with 5X Optical Zoom " +
+        "and 2.7-Inch LCD Screen (Red)",
+      "Samsung",
+      Money.of(CurrencyUnit.USD, 114.95))
+
+    p.similarity(l) should be(2.0)
+
   }
 }

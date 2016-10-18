@@ -1,6 +1,7 @@
 package brightwell.sortable.challenge
 
 import scala.collection.mutable
+import java.lang.StringBuilder
 
 case class Distance(s: CharSequence, equalThreshold: Double) {
 
@@ -66,6 +67,61 @@ object Distance {
     }
 
     matrix(M-1)(N-1)
+  }
+
+  def calcLongestCommon(l: CharSequence, r: CharSequence): CharSequence = {
+    val left = l.codePoints().toArray
+    val right = r.codePoints().toArray
+
+    val M = left.length + 1
+    val N = right.length + 1
+
+    // Create an MxN matrix with the first row/column initialized
+    val matrix = mutable.Seq.fill[Int](M, N)(0)
+
+    for {
+      i <- 1 until M
+      lChar = left(i-1)
+      j <- 1 until N
+      rChar = right(j-1)
+    } {
+      matrix(i)(j) = if (lChar == rChar) {
+          matrix(i - 1)(j - 1) + 1
+        } else {
+          Math.max(matrix(i - 1)(j), matrix(i)(j - 1))
+        }
+    }
+
+    val outSeqBuf = new StringBuilder(Math.max(l.length, r.length))
+
+    var prevIdx = N+1
+    for {
+      i <- (M-1) to 1 by -1
+      col = matrix(i) if prevIdx > 1
+    } {
+      prevIdx = col.zipWithIndex
+          .take(prevIdx)
+          .maxBy(_._1)._2
+
+      if (prevIdx > 0)
+        outSeqBuf.appendCodePoint(right(prevIdx - 1))
+    }
+
+    outSeqBuf.reverse.toString
+  }
+
+  def calcP(l: CharSequence, r: CharSequence) = {
+    val diff = Math.abs(l.length - r.length)
+    val max = 1.0 * Math.max(l.length, r.length)
+
+    val result = if (diff / max > 0.6) {
+      // short circuit, there's no point checking if gt
+      diff / max
+    } else {
+      calc(l, r) / max
+    }
+
+    result
   }
 
 }

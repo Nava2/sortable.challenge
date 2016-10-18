@@ -5,7 +5,7 @@ import play.api.libs.json.{Json, Writes}
 /**
   * Created by kevin on 16/10/2016.
   */
-case class ProductResult(name: String, listings: Seq[Listing]) {
+case class ProductResult(name: String, listings: Iterable[Listing]) {
 
 }
 

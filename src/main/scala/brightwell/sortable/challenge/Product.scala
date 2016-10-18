@@ -1,8 +1,10 @@
 package brightwell.sortable.challenge
 
+import com.google.common.base.{CharMatcher, Splitter}
 import org.joda.time.DateTime
 import play.api.libs.json.{JsPath, Json, Reads, Writes}
 import play.api.libs.functional.syntax._
+import collection.JavaConverters._
 
 /**
   * Created by kevin on 15/10/2016.
@@ -24,45 +26,60 @@ case class Product(name: String,
       announced)
   }
 
-  private def boolCheck(weight: Double, valid: Double = 1.0, invalid: Double = 0.0)(check: Listing => Boolean): PartialFunction[Listing, (Double, Double)] = {
+  private def boolCheck(weight: Double, valid: Double = 1.0, invalid: Double = 0.0)(check: Listing => Boolean): PartialFunction[Listing, Double] = {
     case (listing: Listing) =>
       val checked = if (check(listing)) valid else invalid
-      (checked * weight, valid * weight)
+      checked * weight
   }
 
-  private val title_contains_manufacturer = boolCheck(1.0, invalid = -2) {
-    case (listing: Listing) =>
-      listing.title.contains(this.manufacturer.toLowerCase)
-  }
+  private def title_contains(listing: Listing) = {
+    val titleGram = NGram.from(listing.title)
 
-  private val title_contains_model = boolCheck(1.0) {
-    case (listing: Listing) =>
-      listing.title.contains(this.model.toLowerCase)
-  }
+    val ngMan = NGram.from(manufacturer)
+    val ngFamilyOpt = family.map(NGram.from)
+    val ngModel = NGram.from(model)
 
-  private val manufacturer_matches = boolCheck(1.0) {
-    case (listing: Listing) =>
-      listing.manufacturer.contains(this.manufacturer.toLowerCase)
+    val nullPair = (Seq(), 0.0)
+
+    val comboChecks = Seq(
+        // [Manufacturer Model]
+        ngFamilyOpt.map(f => (ngMan ++ f, 2.0)).getOrElse(nullPair),
+        // [Man Family Model] => 3.0
+        ngFamilyOpt.map(f => (ngMan ++ f ++ ngModel, 5.0)).getOrElse(nullPair),
+        // [Family Model] => [2.0]
+        ngFamilyOpt.map(f => (f ++ ngModel, 3.0)).getOrElse(nullPair),
+        (ngMan ++ ngModel, 3.0)
+      )
+      .map {
+        case (ng, v) => v * (if (NGram.check(ng, titleGram) == 1.0) 1.0 else 0.0)
+      }
+      .sum
+
+    val eqChecks = Seq(
+        (ngMan, 1.0, -1.0),
+        ngFamilyOpt.map(f => (f, 1.0, -1.0)).getOrElse((Seq(), 0.0, 0.0)),
+        (ngModel, 2.0, 0.0) // weight model information strongly
+      )
+      .map {
+        case (ng, good, bad) =>
+          if (ng.nonEmpty && NGram.check(ng, titleGram) < 0.8) bad else good
+      }
+      .sum
+
+    comboChecks + eqChecks
   }
 
   def similarity(listing: Listing): Double = {
     val lListing = listing.toLowerCase
 
     val checks = Seq(
-      title_contains_manufacturer(lListing),
-      title_contains_model(lListing),
-      family.map { // handle family separate because if its not specified, can't penalize
-        case (f: String) =>
-          if (lListing.title.contains(f.toLowerCase))
-            (1.0, 1.0)
-          else
-            (0.0, 1.0)
-      }.getOrElse((0.0, 1.0)),
-      manufacturer_matches(lListing)
+//      title_contains_manufacturer(lListing),
+      title_contains(lListing),
+      if (lListing.manufacturer.contains(this.manufacturer.toLowerCase)) 0.0 else -1.0
     )
 
-    val result = checks.reduce((r, t) => (r._1 + t._1, r._2 + t._2))
-    result._1 / result._2
+    val result = checks.sum
+    result
   }
 }
 
