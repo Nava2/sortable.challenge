@@ -18,7 +18,7 @@ class DistanceTest extends FlatSpec with Matchers {
 
   "Distance.calcLongestCommon(\"aaaa\", \"aab\")" should "return 2" in {
 
-    Distance.calcLongestCommon("abcda", "acbdea") should be("acda")
+    Distance.calcLongestCommonSC("abcda", "acbdea") should be("acda")
 
   }
 }

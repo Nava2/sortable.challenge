@@ -10,7 +10,7 @@ import play.api.libs.json._
 
 case class Listing(title: String,
                    manufacturer: String,
-                   price: Money) {
+                   price: Money) extends Ordered[Listing] {
 
   // {"title":"LED Flash Macro Ring Light (48 X LED) with 6 Adapter Rings for For Canon/Sony/Nikon/Sigma Lenses",
   // "manufacturer":"Neewer Electronics Accessories",
@@ -18,52 +18,16 @@ case class Listing(title: String,
   // "price":"35.99"}
 
   def toLowerCase = {
-    Listing(title.toLowerCase, manufacturer.toLowerCase, price)
+    Listing(NGram.filterChars(title), NGram.filterChars(manufacturer), price)
   }
 
+  import scala.math.Ordered.orderingToOrdered
+
+  override def compare(that: Listing): Int =
+    (manufacturer, title) compare (that.manufacturer, that.title)
 }
 
 object Listing {
-
-  case class Aggregate(others: Iterable[Listing]) {
-
-    val allTitles: Set[String] = others.map(_.title.toLowerCase).toSet
-    val title = reduceToCommon(allTitles)
-
-    val allManufacturers = others.map(_.manufacturer.toLowerCase).toSet
-    val manufacturer = reduceToCommon(allManufacturers)
-
-    val prices = others.map(_.price).toSet
-
-    def filterTo(product: Product) = {
-      val sims = others.map {
-        l => (l, product.similarity(l))
-      }
-
-      val newRes = sims.filter { _._2 > 4.0 } map { _._1 }
-
-      if (newRes.nonEmpty) {
-        Some(Aggregate(newRes))
-      } else {
-        None
-      }
-    }
-
-    private def reduceToCommon(set: Set[String]) = {
-      if (set.isEmpty) {
-        None
-      } else if (set.size == 1) {
-        Some(set.head)
-      } else {
-        val r = set.takeRight(set.size - 1).fold(set.head) { (lcs, title) =>
-          Distance.calcLongestCommon(lcs, title).toString
-        }
-
-        Some(r)
-      }
-    }
-
-  }
 
   // Json conversions:
 

@@ -20,9 +20,9 @@ case class Product(name: String,
 
   def toLowerCase = {
     Product(name.toLowerCase,
-      manufacturer.toLowerCase,
-      model.toLowerCase,
-      family.map( _.toLowerCase ),
+      NGram.filterChars(manufacturer),
+      NGram.filterChars(model),
+      family.map{ f => NGram.filterChars(f) },
       announced)
   }
 
@@ -56,9 +56,9 @@ case class Product(name: String,
       .sum
 
     val eqChecks = Seq(
-        (ngMan, 1.0, -1.0),
+        (ngMan, 1.0, 0.0),
         ngFamilyOpt.map(f => (f, 1.0, -1.0)).getOrElse((Seq(), 0.0, 0.0)),
-        (ngModel, 2.0, 0.0) // weight model information strongly
+        (ngModel, 0.5, 0.0) // weight model information strongly
       )
       .map {
         case (ng, good, bad) =>
@@ -80,6 +80,20 @@ case class Product(name: String,
 
     val result = checks.sum
     result
+  }
+
+  def fastSimilarity(listing: Listing): Double = {
+    val thatL = this.toLowerCase
+
+    val lListing = listing.toLowerCase
+    val checks = Seq(
+      if (lListing.manufacturer.contains(thatL.manufacturer)) 2.0 else 0.0,
+      if (lListing.title.contains(thatL.manufacturer)) 0.5 else 0.0,
+      if (lListing.title.contains(thatL.model)) 0.5 else 0.0,
+      if (thatL.family.exists( f => lListing.title.contains(f) )) 0.5 else 0.0
+    )
+
+    checks.sum
   }
 }
 

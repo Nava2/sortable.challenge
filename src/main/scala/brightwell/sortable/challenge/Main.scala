@@ -1,5 +1,10 @@
 package brightwell.sortable.challenge
 
+import java.io.{File, FileOutputStream, FileWriter, OutputStreamWriter}
+import java.nio.charset.Charset
+
+import com.google.common.base.Charsets
+import org.apache.commons.io.output.FileWriterWithEncoding
 import org.apache.spark.SparkContext
 import org.apache.spark.SparkConf
 import play.api.libs.json.Json
@@ -14,6 +19,13 @@ object Main {
   private def PRODUCTS_PATH = "/data/products.txt"
   private def LISTING_PATH = "/data/listings.txt"
 
+  /**
+    * Reads a file path and creates an RDD from the data.
+    * @param sc Spark Context in use
+    * @param path Path of the file, reads the lines and puts each line
+    *             in individually
+    * @return
+    */
   def read(sc: SparkContext, path: String) = {
     val rdd = {
       val url = Main.getClass.getResource(path)
@@ -24,8 +36,6 @@ object Main {
 
     rdd.map(Json.parse)
   }
-
-
 
   def main(args: Array[String]) {
     val conf = new SparkConf().
@@ -43,7 +53,9 @@ object Main {
 
     println(s"Products: $productsLength, listings: ${listings.count}")
 
+    val FAST_SIM_CUTOFF = 2.5
     val SIM_CUT_OFF = 5.0
+    val outputFile = "result.jsonlines"
 
     val prodManNGrams = products.groupBy( p => NGram.from(p.manufacturer) )
 
@@ -57,17 +69,30 @@ object Main {
         case ((_, lists), manufacturer) =>
           (manufacturer, lists)
       }
-      .mapValues(Listing.Aggregate)
       .join(prodManNGrams)
       .flatMap {
-        case (_, (agg, prods)) =>
-          prods.map { p => agg.others.map { l => (l, (p, p.similarity(l))) } }
+        case (_, (lists, prods)) =>
+          prods.map { p => (p, lists) }
       }
-      .flatMap { it => it }
+      .flatMap {
+        case (p, lists) =>
+          lists.map { l =>
+            (l, (p, p.fastSimilarity(l)))
+          }
+      }
+      .repartition((listingsLength / productsLength).asInstanceOf[Int])(Ordering.by[(Listing, (Product, Double)), Listing](_._1))
+      .filter {
+        case (_, (_, s)) => s > FAST_SIM_CUTOFF
+      }
+      .map {
+        case (l, (p, _)) => (l, (p, p.similarity(l)))
+      }
+      .filter {
+        case (_, (_, s)) => s > SIM_CUT_OFF
+      }
       .reduceByKey {
         case ((p1, s1), (p2, s2)) => if (s1 > s2) (p1, s1) else (p2, s2)
       }
-      .filter { case (l, (p, s)) => s > SIM_CUT_OFF }
       .map { case (l, (p, s)) => (p, (l, s)) }
       .sortBy { case (_, (_, s)) => -s }
       .groupByKey
@@ -89,11 +114,24 @@ object Main {
       }
 
     println(s"Products: $rproductCount/$productsLength = ${(1.0 * rproductCount)/productsLength}")
-    println(s"Products: $rlistingCount/$listingsLength = ${(1.0 * rlistingCount)/listingsLength}")
+    println(s"Listings: $rlistingCount/$listingsLength = ${(1.0 * rlistingCount)/listingsLength}")
 
-    sc.stop()
+    val jsonResult = result.map {
+        r => Json.toJson(r)
+      }
+      .map { _.toString }
+      .collect
 
-    System.exit(0)
+    for {
+      fstream <- resource.managed(new FileOutputStream(outputFile))
+      writer <- resource.managed(new OutputStreamWriter(fstream, Charsets.UTF_8))
+    } {
+      jsonResult.foreach {
+          line =>
+            writer.append(line)
+            writer.append(System.getProperty("line.separator"))
+        }
+    }
 //      .map {
 //        case (p, lists) =>
 //          val model = NGram.filterChars(p.model)

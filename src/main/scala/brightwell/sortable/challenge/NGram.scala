@@ -7,7 +7,7 @@ import com.google.common.base.{CharMatcher, Splitter}
   */
 object NGram {
 
-  private val invalidLetters = CharMatcher.JAVA_LETTER_OR_DIGIT.negate()
+  private val invalidLetters = CharMatcher.JAVA_LETTER_OR_DIGIT.or(CharMatcher.WHITESPACE).negate()
 
   private val WS_SPLITTER = Splitter.on(CharMatcher.BREAKING_WHITESPACE.or(CharMatcher.anyOf(",:().")))
                                     .omitEmptyStrings()
@@ -36,7 +36,16 @@ object NGram {
           .map(check =>
               needle.zip(check)
                 .map {
-                  case (n, c) => if (c == n) 1.0 else 0.0 //Distance.calcP(n, c)
+                  case (n, c) =>
+                    Distance.calcLongestCommonSC(c, n) match {
+                      case Some(lcs) =>
+                        if ((1.0 * c.length - lcs.length) / c.length > 0.8) {
+                          1.0
+                        } else {
+                          0.0
+                        }
+                      case None => 0.0
+                    }
                 }
                 .sum
           )

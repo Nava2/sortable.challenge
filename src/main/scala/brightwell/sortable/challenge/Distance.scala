@@ -69,7 +69,7 @@ object Distance {
     matrix(M-1)(N-1)
   }
 
-  def calcLongestCommon(l: CharSequence, r: CharSequence): CharSequence = {
+  def calcLongestCommonSC(l: CharSequence, r: CharSequence, checkPercent: Double = 0.20): Option[CharSequence] = {
     val left = l.codePoints().toArray
     val right = r.codePoints().toArray
 
@@ -85,29 +85,39 @@ object Distance {
       j <- 1 until N
       rChar = right(j-1)
     } {
-      matrix(i)(j) = if (lChar == rChar) {
+      val v = if (lChar == rChar) {
           matrix(i - 1)(j - 1) + 1
         } else {
           Math.max(matrix(i - 1)(j), matrix(i)(j - 1))
         }
+
+      matrix(i)(j) = v
     }
 
-    val outSeqBuf = new StringBuilder(Math.max(l.length, r.length))
+    // Check so we can short circuit and save building the string via
+    // the reverse tracking
+    if ((1.0 * matrix(M-1)(N-1)) / M <= checkPercent) {
+      val outSeqBuf = new StringBuilder(Math.max(l.length, r.length))
 
-    var prevIdx = N+1
-    for {
-      i <- (M-1) to 1 by -1
-      col = matrix(i) if prevIdx > 1
-    } {
-      prevIdx = col.zipWithIndex
+      var prevIdx = N+1
+      for {
+        i <- (M-1) to 1 by -1
+        col = matrix(i) if prevIdx > 1
+      } {
+        prevIdx = col.zipWithIndex
           .take(prevIdx)
           .maxBy(_._1)._2
 
-      if (prevIdx > 0)
-        outSeqBuf.appendCodePoint(right(prevIdx - 1))
+        if (prevIdx > 0)
+          outSeqBuf.appendCodePoint(right(prevIdx - 1))
+      }
+
+      Some(outSeqBuf.reverse.toString)
+    } else {
+      None
     }
 
-    outSeqBuf.reverse.toString
+
   }
 
   def calcP(l: CharSequence, r: CharSequence) = {
