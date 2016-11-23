@@ -12,7 +12,8 @@ lazy val root = (project in file(".")).
       "com.jsuereth" %% "scala-arm" % "1.4",
       "com.typesafe.play" %% "play-json" % "2.5.9",
       "com.github.nscala-money" %% "nscala-money" % "0.11.0",
-      "com.github.nscala-money" %% "nscala-money-play-json" % "0.11.0"
+      "com.github.nscala-money" %% "nscala-money-play-json" % "0.11.0",
+      "com.github.scopt" %% "scopt" % "3.5.0"
     ),
     dependencyOverrides ++= Set(
       "com.fasterxml.jackson.core" % "jackson-core" % jacksonVer,

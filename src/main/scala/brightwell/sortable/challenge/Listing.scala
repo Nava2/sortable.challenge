@@ -5,9 +5,11 @@ import org.joda.money.{CurrencyUnit, Money}
 import play.api.libs.json._
 
 /**
-  * Created by kevin on 15/10/2016.
+  * Defines a "Listing" value
+  * @param title Title shown to customers
+  * @param manufacturer The manufacturer of a product
+  * @param price Value sold for
   */
-
 case class Listing(title: String,
                    manufacturer: String,
                    price: Money) extends Ordered[Listing] {

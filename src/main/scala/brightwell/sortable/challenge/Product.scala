@@ -39,7 +39,7 @@ case class Product(name: String,
     val ngFamilyOpt = family.map(NGram.from)
     val ngModel = NGram.from(model)
 
-    val nullPair = (Seq(), 0.0)
+    val nullPair = (NGram.empty, 0.0)
 
     val comboChecks = Seq(
         // [Manufacturer Model]
@@ -51,18 +51,18 @@ case class Product(name: String,
         (ngMan ++ ngModel, 3.0)
       )
       .map {
-        case (ng, v) => v * (if (NGram.check(ng, titleGram) == 1.0) 1.0 else 0.0)
+        case (ng, v) => v * (if (ng.check(titleGram) == 1.0) 1.0 else 0.0)
       }
       .sum
 
     val eqChecks = Seq(
         (ngMan, 1.0, 0.0),
-        ngFamilyOpt.map(f => (f, 1.0, -1.0)).getOrElse((Seq(), 0.0, 0.0)),
+        ngFamilyOpt.map(f => (f, 1.0, -1.0)).getOrElse((NGram.empty, 0.0, 0.0)),
         (ngModel, 0.5, 0.0) // weight model information strongly
       )
       .map {
         case (ng, good, bad) =>
-          if (ng.nonEmpty && NGram.check(ng, titleGram) < 0.8) bad else good
+          if (ng.nonEmpty && ng.check(titleGram) < 0.8) bad else good
       }
       .sum
 
